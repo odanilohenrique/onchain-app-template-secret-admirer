@@ -2,283 +2,341 @@
 
 import React, { useState, useEffect } from 'react';
 
-// --- 1. TIPAGEM PARA O TYPESCRIPT NÃO RECLAMAR ---
-// Isso diz pro computador exatamente o que esperar, evitando erros de build
-type PaymentResponse = {
-  success: boolean;
-  message?: string;
-};
+// --- 1. COMPONENTES VISUAIS INTERNOS (Para não depender de arquivos externos) ---
 
-// --- 2. MOCK MINIKIT (SIMULAÇÃO) ---
-// Simula a carteira para você poder testar sem estar no celular agora
-const mockMiniKit = {
-  commands: {
-    pay: async (): Promise<PaymentResponse> => {
-      return new Promise((resolve) => {
-        setTimeout(() => resolve({ success: true }), 1500);
-      });
-    }
-  }
-};
+// Botão da Aba
+const TabButton = ({ active, onClick, label, icon }: { active: boolean; onClick: () => void; label: string; icon: string }) => (
+  <button
+    onClick={onClick}
+    className={`flex-1 py-3 px-4 text-sm font-medium transition-all duration-200 border-b-2 flex items-center justify-center gap-2 ${
+      active
+        ? 'border-pink-500 text-pink-400 bg-white/5'
+        : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+    }`}
+  >
+    <span>{icon}</span>
+    {label}
+  </button>
+);
 
-export default function Page() {
-  // --- 3. TRAVA DE HIDRATAÇÃO (O SEGREDO DO SUCESSO) ---
+// Card (Caixa estilizada)
+const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+  <div className={`bg-gray-900/60 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl ${className}`}>
+    {children}
+  </div>
+);
+
+// --- 2. LÓGICA DO APP ---
+
+export default function SecretAdmirerPage() {
+  // --- ESTADOS ---
   const [isMounted, setIsMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState<'send' | 'inbox' | 'about'>('send');
   
-  // --- 4. ESTADOS DO APP ---
-  const [view, setView] = useState<'home' | 'sent' | 'inbox' | 'game' | 'result'>('home');
+  // Estados do fluxo de envio
+  const [step, setStep] = useState<'input' | 'sending' | 'sent'>('input');
   const [targetUser, setTargetUser] = useState('');
   const [message, setMessage] = useState('');
   const [isFlirty, setIsFlirty] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState('idle');
-  const [guess, setGuess] = useState('');
-  const [attempts, setAttempts] = useState(3);
-  const [gameResult, setGameResult] = useState<'win' | 'lose' | null>(null);
   const [generatedMessage, setGeneratedMessage] = useState('');
 
-  // --- 5. EFEITO DE INICIALIZAÇÃO ---
-  // Só roda quando o navegador terminou de carregar tudo
+  // Estados do fluxo de Inbox/Jogo
+  const [gameStep, setGameStep] = useState<'locked' | 'paying' | 'guessing' | 'result'>('locked');
+  const [attempts, setAttempts] = useState(3);
+  const [guess, setGuess] = useState('');
+  const [gameResult, setGameResult] = useState<'win' | 'lose' | null>(null);
+
+  // --- EFEITO DE MONTAGEM (Evita erro de hidratação) ---
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Se não estiver montado, não retorna NADA. Isso evita o erro "Client-side exception".
   if (!isMounted) {
-    return <div className="min-h-screen bg-black" />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        <div className="animate-pulse">Carregando Secret Admirer...</div>
+      </div>
+    );
   }
 
-  // --- 6. LÓGICA DO APP ---
+  // --- FUNÇÕES ---
+
   const handleSend = () => {
     if (!targetUser || !message) return;
-    setIsLoading(true);
+    setStep('sending');
 
-    // Simula a IA reescrevendo
+    // Simula API
     setTimeout(() => {
       let rewrote = message;
       if (isFlirty) {
-        rewrote = `Ei @${targetUser}, não consigo parar de pensar em você... ${message} 🔥😈`;
+        rewrote = `Ei @${targetUser}, não consigo tirar você da cabeça... ${message} 🔥😈`;
       } else {
-        rewrote = `Olá @${targetUser}, alguém admira seu brilho... ${message} ✨💌`;
+        rewrote = `Olá @${targetUser}, seu brilho é notável... ${message} ✨💌`;
       }
-      
       setGeneratedMessage(rewrote);
-      setIsLoading(false);
-      setView('sent');
+      setStep('sent');
     }, 2000);
   };
 
-  const handlePay = async () => {
-    setPaymentStatus('processing');
-    try {
-      // Chama o mock de pagamento
-      const res = await mockMiniKit.commands.pay();
-      if (res.success) {
-        setPaymentStatus('success');
-        setTimeout(() => setView('game'), 1000);
-      }
-    } catch (error) {
-      setPaymentStatus('idle');
-      alert('Erro no pagamento simulado.');
-    }
+  const handlePay = () => {
+    setGameStep('paying');
+    // Simula Pagamento
+    setTimeout(() => {
+      setGameStep('guessing');
+    }, 1500);
   };
 
   const handleGuess = () => {
-    // Num app real, isso viria criptografado do banco de dados
-    const realSender = 'usuario_teste'; 
-    
+    const realSender = 'usuario_teste';
     if (guess.toLowerCase() === realSender.toLowerCase()) {
       setGameResult('win');
-      setView('result');
+      setGameStep('result');
     } else {
       const newAttempts = attempts - 1;
       setAttempts(newAttempts);
       if (newAttempts === 0) {
         setGameResult('lose');
-        setView('result');
+        setGameStep('result');
       } else {
         alert(`Errou! Restam ${newAttempts} tentativas.`);
       }
     }
   };
 
-  // --- 7. RENDERIZAÇÃO VISUAL (INTERFACE) ---
+  const resetSend = () => {
+    setMessage('');
+    setTargetUser('');
+    setStep('input');
+  };
+
+  // --- RENDERIZAÇÃO ---
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-600 text-white font-sans selection:bg-pink-500 selection:text-white">
+    <main className="min-h-screen bg-black text-white font-sans selection:bg-pink-500 selection:text-white pb-20">
       
-      {/* TELA 1: HOME */}
-      {view === 'home' && (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6">
-          <div className="w-full max-w-md space-y-8">
-            <div className="text-center">
-              <h1 className="text-5xl font-extrabold tracking-tighter drop-shadow-lg mb-2">
-                Secret <span className="text-pink-400">Admirer</span>
-              </h1>
-              <p className="text-pink-200 text-lg">Envie flertes anônimos 💌</p>
-            </div>
+      {/* HEADER */}
+      <div className="text-center py-8 px-4 bg-gradient-to-b from-pink-900/20 to-transparent">
+        <div className="text-5xl mb-2 animate-bounce">💌</div>
+        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-purple-400">
+          Secret Admirer
+        </h1>
+        <p className="text-gray-400 text-sm mt-2">
+          Envie mensagens anônimas turbinadas por IA
+        </p>
+      </div>
 
-            <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl shadow-xl border border-white/20 space-y-6">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-pink-300 block mb-2">Para quem?</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-3 text-gray-400">@</span>
-                  <input 
-                    type="text" 
-                    placeholder="username"
-                    className="w-full bg-black/30 border border-white/10 rounded-xl py-3 pl-8 pr-4 focus:outline-none focus:border-pink-500 transition-all text-white"
-                    value={targetUser}
-                    onChange={(e) => setTargetUser(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-pink-300 block mb-2">Mensagem</label>
-                <textarea 
-                  className="w-full bg-black/30 border border-white/10 rounded-xl p-3 h-24 focus:outline-none focus:border-pink-500 transition-all resize-none text-white"
-                  placeholder="Escreva o que sente..."
-                  maxLength={280}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                />
-                <div className="text-right text-xs text-gray-400 mt-1">{message.length}/280</div>
-              </div>
-
-              <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl cursor-pointer" onClick={() => setIsFlirty(!isFlirty)}>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{isFlirty ? '🔥' : '😇'}</span>
-                  <span className="font-medium text-sm">Modo Picante</span>
-                </div>
-                <div className={`w-12 h-6 rounded-full transition-colors relative ${isFlirty ? 'bg-orange-500' : 'bg-gray-600'}`}>
-                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${isFlirty ? 'left-7' : 'left-1'}`} />
-                </div>
-              </div>
-
-              <button 
-                onClick={handleSend}
-                disabled={isLoading || !targetUser || !message}
-                className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-bold py-4 rounded-xl shadow-lg transform transition active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'Enviando...' : '🔒 Enviar Anônimo'}
-              </button>
-            </div>
-
-            <button 
-              onClick={() => setView('inbox')}
-              className="text-xs text-white/30 hover:text-white text-center w-full mt-4 block"
-            >
-              [Modo Demo: Ver como Destinatário]
-            </button>
-          </div>
+      {/* MENU DE ABAS (TABS) */}
+      <div className="max-w-md mx-auto px-4 mb-6">
+        <div className="flex bg-gray-900 rounded-t-xl border-b border-white/10">
+          <TabButton 
+            active={activeTab === 'send'} 
+            onClick={() => setActiveTab('send')} 
+            label="Enviar" 
+            icon="✍️" 
+          />
+          <TabButton 
+            active={activeTab === 'inbox'} 
+            onClick={() => setActiveTab('inbox')} 
+            label="Inbox (Demo)" 
+            icon="📬" 
+          />
+           <TabButton 
+            active={activeTab === 'about'} 
+            onClick={() => setActiveTab('about')} 
+            label="Sobre" 
+            icon="ℹ️" 
+          />
         </div>
-      )}
 
-      {/* TELA 2: ENVIADO */}
-      {view === 'sent' && (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center bg-black">
-          <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(34,197,94,0.5)]">
-            <span className="text-4xl">✈️</span>
-          </div>
-          <h2 className="text-3xl font-bold mb-2">Enviado! 🤫</h2>
-          <p className="text-gray-400 mb-8">Sua identidade está protegida.</p>
-          <div className="bg-gray-900 p-4 rounded-lg border border-gray-800 max-w-xs w-full mb-8">
-            <p className="text-xs text-gray-500 uppercase mb-1">Como a IA reescreveu:</p>
-            <p className="italic text-pink-300 text-sm">"{generatedMessage}"</p>
-          </div>
-          <button onClick={() => { setMessage(''); setTargetUser(''); setView('home'); }} className="text-white underline">
-            Enviar outro
-          </button>
-        </div>
-      )}
-
-      {/* TELA 3: INBOX (DESTINATÁRIO) */}
-      {view === 'inbox' && (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-b from-pink-900 to-black">
-          <span className="text-6xl animate-bounce mb-4">💕</span>
-          <h1 className="text-3xl font-bold text-center mb-6">Você tem um Admirador!</h1>
+        {/* CONTEÚDO DAS ABAS */}
+        <div className="bg-gray-900/50 min-h-[400px] rounded-b-xl border-x border-b border-white/10 p-4">
           
-          <div className="w-full max-w-md bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-pink-500/30 mb-8 relative overflow-hidden">
-            <div className="absolute -right-4 -top-4 w-20 h-20 bg-pink-500 blur-3xl opacity-50"></div>
-            <p className="text-xl font-serif text-center italic leading-relaxed text-white">
-              "{generatedMessage || 'Você ilumina qualquer ambiente que entra...'}"
-            </p>
-          </div>
+          {/* ABA 1: ENVIAR */}
+          {activeTab === 'send' && (
+            <div className="space-y-4">
+              {step === 'input' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-pink-400 uppercase">Para quem?</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-3 text-gray-500">@</span>
+                      <input
+                        type="text"
+                        className="w-full bg-black/40 border border-white/10 rounded-lg py-3 pl-8 pr-3 focus:border-pink-500 focus:outline-none transition-colors"
+                        placeholder="username"
+                        value={targetUser}
+                        onChange={(e) => setTargetUser(e.target.value)}
+                      />
+                    </div>
+                  </div>
 
-          <div className="bg-black/40 p-6 rounded-2xl w-full max-w-md border border-yellow-500/30">
-            <h3 className="text-yellow-400 font-bold flex items-center gap-2 mb-2">
-              <span>❓</span> Quer saber quem foi?
-            </h3>
-            <p className="text-sm text-gray-300 mb-4">
-              Você tem <span className="font-bold text-white">3 chances</span> para adivinhar.
-            </p>
-            
-            <button 
-              onClick={handlePay}
-              disabled={paymentStatus === 'processing'}
-              className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95"
-            >
-              {paymentStatus === 'processing' ? 'Processando...' : '💰 Pagar 0.1 USDC'}
-            </button>
-          </div>
-          
-          <button onClick={() => setView('home')} className="mt-8 text-sm text-gray-500">Voltar ao início</button>
-        </div>
-      )}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-pink-400 uppercase">Sua Mensagem</label>
+                    <textarea
+                      className="w-full bg-black/40 border border-white/10 rounded-lg p-3 h-32 focus:border-pink-500 focus:outline-none resize-none transition-colors"
+                      placeholder="Escreva seu segredo..."
+                      maxLength={280}
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                    />
+                    <div className="text-right text-xs text-gray-500">{message.length}/280</div>
+                  </div>
 
-      {/* TELA 4: JOGO */}
-      {view === 'game' && (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-black">
-          <h2 className="text-2xl font-bold mb-6">Quem mandou isso? 🤔</h2>
-          
-          <div className="w-full max-w-xs space-y-4">
-            <div className="text-center mb-4">
-              <span className="text-6xl font-mono block mb-2">{attempts}</span>
-              <p className="text-sm text-gray-400">Tentativas restantes</p>
+                  <div 
+                    onClick={() => setIsFlirty(!isFlirty)}
+                    className={`p-3 rounded-lg border border-white/10 cursor-pointer flex items-center justify-between transition-all ${isFlirty ? 'bg-orange-900/20 border-orange-500/50' : 'bg-black/20'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{isFlirty ? '🔥' : '😇'}</span>
+                      <div className="text-sm">
+                        <span className="font-bold block">Modo Picante</span>
+                        <span className="text-xs text-gray-400">{isFlirty ? 'Mensagem ousada e direta' : 'Mensagem fofa e romântica'}</span>
+                      </div>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border ${isFlirty ? 'bg-orange-500 border-orange-500' : 'border-gray-500'}`} />
+                  </div>
+
+                  <button
+                    onClick={handleSend}
+                    disabled={!targetUser || !message}
+                    className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-4 rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                  >
+                    Enviar Anônimo
+                  </button>
+                </div>
+              )}
+
+              {step === 'sending' && (
+                <div className="flex flex-col items-center justify-center h-64 space-y-4">
+                  <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-pink-400 animate-pulse">A IA está reescrevendo sua mensagem...</p>
+                </div>
+              )}
+
+              {step === 'sent' && (
+                <div className="text-center py-8">
+                  <div className="w-20 h-20 bg-green-500/20 text-green-400 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl border border-green-500/50">
+                    ✓
+                  </div>
+                  <h2 className="text-2xl font-bold text-white mb-2">Enviado!</h2>
+                  <p className="text-gray-400 text-sm mb-6">Sua identidade foi protegida criptograficamente.</p>
+                  
+                  <Card className="bg-black/40 p-4 mb-6 text-left">
+                    <p className="text-xs text-gray-500 uppercase mb-2">Preview da IA:</p>
+                    <p className="text-pink-300 italic">"{generatedMessage}"</p>
+                  </Card>
+
+                  <button onClick={resetSend} className="text-pink-400 hover:text-pink-300 text-sm underline">
+                    Enviar nova mensagem
+                  </button>
+                </div>
+              )}
             </div>
-
-            <div className="relative">
-              <span className="absolute left-3 top-3 text-gray-500">@</span>
-              <input 
-                type="text" 
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl py-3 pl-8 pr-4 focus:border-pink-500 outline-none text-lg text-white"
-                placeholder="username"
-                value={guess}
-                onChange={(e) => setGuess(e.target.value)}
-              />
-            </div>
-
-            <button 
-              onClick={handleGuess}
-              className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-gray-200"
-            >
-              Verificar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* TELA 5: RESULTADO */}
-      {view === 'result' && (
-        <div className={`flex flex-col items-center justify-center min-h-screen p-6 text-center ${gameResult === 'win' ? 'bg-green-900' : 'bg-red-900'}`}>
-          {gameResult === 'win' ? (
-            <>
-              <span className="text-6xl mb-4">🎉</span>
-              <h1 className="text-4xl font-bold mb-2">ACERTOU!</h1>
-              <p className="text-xl mb-8">Foi o <span className="font-bold text-yellow-300">@usuario_teste</span>!</p>
-            </>
-          ) : (
-            <>
-              <span className="text-6xl mb-4">❌</span>
-              <h1 className="text-4xl font-bold mb-2">PERDEU!</h1>
-              <p className="text-xl mb-8">Suas tentativas acabaram.</p>
-              <p className="text-lg text-yellow-200">O dinheiro ficou com o criador.</p>
-            </>
           )}
-          <button onClick={() => setView('home')} className="mt-12 bg-white/20 px-6 py-2 rounded-full hover:bg-white/30">
-            Voltar ao início
-          </button>
+
+          {/* ABA 2: INBOX (DEMONSTRAÇÃO) */}
+          {activeTab === 'inbox' && (
+            <div className="space-y-6 text-center">
+              {gameStep === 'locked' && (
+                <>
+                  <div className="py-6">
+                    <p className="text-gray-400 text-sm mb-4">Você recebeu uma mensagem anônima:</p>
+                    <Card className="p-6 bg-gradient-to-br from-pink-900/40 to-black border-pink-500/30">
+                      <p className="text-lg italic text-pink-100">"{generatedMessage || 'Sua energia ilumina qualquer lugar que você chega...'}"</p>
+                    </Card>
+                  </div>
+                  
+                  <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4">
+                    <h3 className="text-yellow-400 font-bold mb-2">Quer saber quem foi?</h3>
+                    <p className="text-xs text-gray-400 mb-4">Pague uma pequena taxa para tentar adivinhar.</p>
+                    <button 
+                      onClick={handlePay}
+                      className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-transform active:scale-95"
+                    >
+                      💰 Pagar 0.1 USDC
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {gameStep === 'paying' && (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <div className="animate-spin text-4xl mb-4">💸</div>
+                  <p className="text-yellow-400">Processando pagamento...</p>
+                </div>
+              )}
+
+              {gameStep === 'guessing' && (
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold">Quem é o Admirador?</h3>
+                  <div className="text-4xl font-mono text-pink-500 mb-2">{attempts}</div>
+                  <p className="text-xs text-gray-400">Tentativas restantes</p>
+
+                  <div className="relative">
+                    <span className="absolute left-3 top-3 text-gray-500">@</span>
+                    <input
+                      type="text"
+                      className="w-full bg-black/40 border border-white/10 rounded-lg py-3 pl-8 focus:border-pink-500 focus:outline-none"
+                      placeholder="Digite o username"
+                      value={guess}
+                      onChange={(e) => setGuess(e.target.value)}
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleGuess}
+                    className="w-full bg-white text-black font-bold py-3 rounded-lg hover:bg-gray-200"
+                  >
+                    Verificar
+                  </button>
+                </div>
+              )}
+
+              {gameStep === 'result' && (
+                <div className="py-8">
+                  {gameResult === 'win' ? (
+                    <>
+                      <div className="text-6xl mb-4">🎉</div>
+                      <h2 className="text-2xl font-bold text-green-400 mb-2">VOCÊ ACERTOU!</h2>
+                      <p className="text-gray-300">Foi o <span className="font-bold text-white">@usuario_teste</span></p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-6xl mb-4">😈</div>
+                      <h2 className="text-2xl font-bold text-red-400 mb-2">VOCÊ ERROU!</h2>
+                      <p className="text-gray-300">O dinheiro ficou com a casa.</p>
+                    </>
+                  )}
+                  <button 
+                    onClick={() => { setGameStep('locked'); setAttempts(3); setGuess(''); }}
+                    className="mt-8 text-sm underline text-gray-500"
+                  >
+                    Reiniciar Demo
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ABA 3: SOBRE */}
+          {activeTab === 'about' && (
+            <div className="space-y-4 text-sm text-gray-300">
+              <h3 className="font-bold text-white text-lg">Como funciona?</h3>
+              <p>Secret Admirer permite enviar mensagens anônimas para outros usuários do Farcaster.</p>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>Escolha o destinatário</li>
+                <li>Escreva sua mensagem bruta</li>
+                <li>Nossa IA (Grok) reescreve para torná-la mais envolvente (ou picante!)</li>
+                <li>O destinatário pode pagar para tentar adivinhar quem mandou.</li>
+              </ul>
+              <div className="mt-8 p-4 bg-blue-900/20 rounded-lg border border-blue-500/30">
+                <p className="text-xs text-blue-300">Desenvolvido para o Farcaster Mini App Hackathon.</p>
+              </div>
+            </div>
+          )}
+
         </div>
-      )}
+      </div>
     </main>
   );
 }
